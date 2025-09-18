@@ -134,7 +134,7 @@ _Payload Example:_
       "questions": [
         {
           "question_text": "How easy was it to use the new product?",
-          "question_type_id": 5,
+          "questionuuid": 5,
           "order_number": 1,
           "is_required": true,
           "options": {
@@ -146,7 +146,7 @@ _Payload Example:_
         },
         {
           "question_text": "What feature did you like the most?",
-          "question_type_id": 1,
+          "questionuuid": 14782-Bsujem-xxxxx,
           "order_number": 2,
           "is_required": false
         }
@@ -188,7 +188,7 @@ _Success (200 OK):_
   "status": "success",
   "data": [
     {
-      "id": "1",
+      "question_uuid": "1",
       "type_name": "Short Text",
       "description": "A single-line text input."
     },
