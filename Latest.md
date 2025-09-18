@@ -2,11 +2,11 @@ Items with * are the compulsored fields
 /dashboard/create_survey.php (maximized)
 ```json
 {
-  "survey_type" *: "questionnaire",//poll
-  "title" *: "Customer Feedback Survey",
-  "description" *: "Share your thoughts on our services.",
+  "survey_type *": "questionnaire",//poll
+  "title *": "Customer Feedback Survey",
+  "description *": "Share your thoughts on our services.",
   "category_id": 3, // Not necessary now
-  "status" *: "draft",//default is draft
+  "status *": "draft",//default is draft
   "header_media_type": "image",
   "header_media": "https://example.com/image.jpg",
   "font_family": "Arial",
@@ -61,9 +61,9 @@ Items with * are the compulsored fields
   "isopen": true,
   "sections": [
     {
-      "title" *: "Experience Feedback",
-      "description" *: "Tell us about your experience.",
-      "order_number" *: 1, // this is to know the arrangement of the sections, should be draggeble on thr fronetned
+      "title *": "Experience Feedback",
+      "description *": "Tell us about your experience.",
+      "order_number *": 1, // this is to know the arrangement of the sections, should be draggeble on thr fronetned
       "is_active": true,
       "media_type": "image",
       "media_url": "https://example.com/section-image.jpg",
