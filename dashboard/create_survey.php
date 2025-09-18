@@ -150,40 +150,136 @@ if (!empty($survey_data[':category_id'])) {
 try {
     $pdo->beginTransaction();
 
-    // Insert survey
-    $sql = "INSERT INTO surveys (
-        owner_id, category_id, survey_type, title, description, header_media_type, header_media,
-        font_family, font_size, primary_color, secondary_color, active_color, dark_theme,
-        background_type, background_media, background_media_input_type, require_login,
-        notifications_range, max_submissions, proshield_enabled, proshield_degree,
-        whatsapp_notifications, whatsapp_number, email_notifications, popup_notifications,
-        meta_title, meta_description, status, created_at, updated_at, start_date, end_date,
-        time_limit, response_anonymity, allow_multiple_responses, response_editable, language,
-        translation_enabled, custom_url, access_code, ip_restriction, geo_restriction,
-        thank_you_message, thank_you_redirect_url, progress_bar_enabled, question_randomization,
-        response_export_format, analytics_enabled, recaptcha_enabled, custom_css, custom_js,
-        survey_password, response_quota_by_group, embed_enabled, embed_code, sms_notifications,
-        sms_number, conditional_logic_enabled, data_retention_period,
-       api_key, isopen
-    ) VALUES (
-        :owner_id, :category_id, :survey_type, :title, :description, :header_media_type, :header_media,
-        :font_family, :font_size, :primary_color, :secondary_color, :active_color, :dark_theme,
-        :background_type, :background_media, :background_media_input_type, :require_login,
-        :notifications_range, :max_submissions, :proshield_enabled, :proshield_degree,
-        :whatsapp_notifications, :whatsapp_number, :email_notifications, :popup_notifications,
-        :meta_title, :meta_description, :status, NOW(), NULL, :start_date, :end_date,
-        :time_limit, :response_anonymity, :allow_multiple_responses, :response_editable, :language,
-        :translation_enabled, :custom_url, :access_code, :ip_restriction, :geo_restriction,
-        :thank_you_message, :thank_you_redirect_url, :progress_bar_enabled, :question_randomization,
-        :response_export_format, :analytics_enabled, :recaptcha_enabled, :custom_css, :custom_js,
-        :survey_password, :response_quota_by_group, :embed_enabled, :embed_code, :sms_notifications,
-        :sms_number, :conditional_logic_enabled, :data_retention_period,
-       :api_key, :isopen
-    )";
+    // Check if survey_id is provided for updating
+    $survey_id = isset($input['survey_id']) ? (int)$input['survey_id'] : null;
+    $is_update = false;
 
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($survey_data);
-    $survey_id = $pdo->lastInsertId();
+    if ($survey_id) {
+        // Check if survey exists and is draft
+        $stmt = $pdo->prepare("SELECT id, status FROM surveys WHERE id = :survey_id AND owner_id = :owner_id");
+        $stmt->execute([':survey_id' => $survey_id, ':owner_id' => $user_id]);
+        $existing_survey = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$existing_survey) {
+            $pdo->rollBack();
+            http_response_code(404);
+            $response['message'] = "Survey not found or not owned by user";
+            $response['debug'] = "Ensure survey_id $survey_id exists and is owned by user_id $user_id.";
+            exit(json_encode($response));
+        }
+
+        if ($existing_survey['status'] !== 'draft') {
+            $pdo->rollBack();
+            http_response_code(400);
+            $response['message'] = "Survey is not editable (status is {$existing_survey['status']})";
+            $response['debug'] = "Only surveys with status 'draft' can be updated.";
+            exit(json_encode($response));
+        }
+
+        $is_update = true;
+        // Update survey
+        $sql = "UPDATE surveys SET
+            category_id = :category_id,
+            survey_type = :survey_type,
+            title = :title,
+            description = :description,
+            header_media_type = :header_media_type,
+            header_media = :header_media,
+            font_family = :font_family,
+            font_size = :font_size,
+            primary_color = :primary_color,
+            secondary_color = :secondary_color,
+            active_color = :active_color,
+            dark_theme = :dark_theme,
+            background_type = :background_type,
+            background_media = :background_media,
+            background_media_input_type = :background_media_input_type,
+            require_login = :require_login,
+            notifications_range = :notifications_range,
+            max_submissions = :max_submissions,
+            proshield_enabled = :proshield_enabled,
+            proshield_degree = :proshield_degree,
+            whatsapp_notifications = :whatsapp_notifications,
+            whatsapp_number = :whatsapp_number,
+            email_notifications = :email_notifications,
+            popup_notifications = :popup_notifications,
+            meta_title = :meta_title,
+            meta_description = :meta_description,
+            status = :status,
+            updated_at = NOW(),
+            start_date = :start_date,
+            end_date = :end_date,
+            time_limit = :time_limit,
+            response_anonymity = :response_anonymity,
+            allow_multiple_responses = :allow_multiple_responses,
+            response_editable = :response_editable,
+            language = :language,
+            translation_enabled = :translation_enabled,
+            custom_url = :custom_url,
+            access_code = :access_code,
+            ip_restriction = :ip_restriction,
+            geo_restriction = :geo_restriction,
+            thank_you_message = :thank_you_message,
+            thank_you_redirect_url = :thank_you_redirect_url,
+            progress_bar_enabled = :progress_bar_enabled,
+            question_randomization = :question_randomization,
+            response_export_format = :response_export_format,
+            analytics_enabled = :analytics_enabled,
+            recaptcha_enabled = :recaptcha_enabled,
+            custom_css = :custom_css,
+            custom_js = :custom_js,
+            survey_password = :survey_password,
+            response_quota_by_group = :response_quota_by_group,
+            embed_enabled = :embed_enabled,
+            embed_code = :embed_code,
+            sms_notifications = :sms_notifications,
+            sms_number = :sms_number,
+            conditional_logic_enabled = :conditional_logic_enabled,
+            data_retention_period = :data_retention_period,
+            api_key = :api_key,
+            isopen = :isopen
+        WHERE id = :survey_id AND owner_id = :owner_id";
+        
+        $survey_data[':survey_id'] = $survey_id;
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($survey_data);
+
+        // Delete existing sections and questions for update
+        $pdo->prepare("DELETE FROM survey_questions WHERE section_id IN (SELECT id FROM survey_sections WHERE survey_id = ?)")->execute([$survey_id]);
+        $pdo->prepare("DELETE FROM survey_sections WHERE survey_id = ?")->execute([$survey_id]);
+    } else {
+        // Insert new survey
+        $sql = "INSERT INTO surveys (
+            owner_id, category_id, survey_type, title, description, header_media_type, header_media,
+            font_family, font_size, primary_color, secondary_color, active_color, dark_theme,
+            background_type, background_media, background_media_input_type, require_login,
+            notifications_range, max_submissions, proshield_enabled, proshield_degree,
+            whatsapp_notifications, whatsapp_number, email_notifications, popup_notifications,
+            meta_title, meta_description, status, created_at, updated_at, start_date, end_date,
+            time_limit, response_anonymity, allow_multiple_responses, response_editable, language,
+            translation_enabled, custom_url, access_code, ip_restriction, geo_restriction,
+            thank_you_message, thank_you_redirect_url, progress_bar_enabled, question_randomization,
+            response_export_format, analytics_enabled, recaptcha_enabled, custom_css, custom_js,
+            survey_password, response_quota_by_group, embed_enabled, embed_code, sms_notifications,
+            sms_number, conditional_logic_enabled, data_retention_period, api_key, isopen
+        ) VALUES (
+            :owner_id, :category_id, :survey_type, :title, :description, :header_media_type, :header_media,
+            :font_family, :font_size, :primary_color, :secondary_color, :active_color, :dark_theme,
+            :background_type, :background_media, :background_media_input_type, :require_login,
+            :notifications_range, :max_submissions, :proshield_enabled, :proshield_degree,
+            :whatsapp_notifications, :whatsapp_number, :email_notifications, :popup_notifications,
+            :meta_title, :meta_description, :status, NOW(), NULL, :start_date, :end_date,
+            :time_limit, :response_anonymity, :allow_multiple_responses, :response_editable, :language,
+            :translation_enabled, :custom_url, :access_code, :ip_restriction, :geo_restriction,
+            :thank_you_message, :thank_you_redirect_url, :progress_bar_enabled, :question_randomization,
+            :response_export_format, :analytics_enabled, :recaptcha_enabled, :custom_css, :custom_js,
+            :survey_password, :response_quota_by_group, :embed_enabled, :embed_code, :sms_notifications,
+            :sms_number, :conditional_logic_enabled, :data_retention_period, :api_key, :isopen
+        )";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($survey_data);
+        $survey_id = $pdo->lastInsertId();
+    }
 
     // Handle sections (optional)
     $sections = $input['sections'] ?? [];
@@ -230,7 +326,7 @@ try {
         $questions = $section['questions'] ?? [];
         foreach ($questions as $question_index => $question) {
             // Required question fields
-            $required_question_fields = ['question_text', 'question_type_id'];
+            $required_question_fields = ['question_text', 'question_uuid'];
             foreach ($required_question_fields as $field) {
                 if (empty($question[$field])) {
                     $pdo->rollBack();
@@ -241,20 +337,20 @@ try {
                 }
             }
 
-            // Validate question_type_id
-            $stmt = $pdo->prepare("SELECT id FROM question_types WHERE id = ?");
-            $stmt->execute([(int)$question['question_type_id']]);
+            // Validate question_uuid
+            $stmt = $pdo->prepare("SELECT question_uuid FROM question_types WHERE question_uuid = ?");
+            $stmt->execute([$question['question_uuid']]);
             if (!$stmt->fetch()) {
                 $pdo->rollBack();
                 http_response_code(400);
-                $response['message'] = "Invalid question_type_id: {$question['question_type_id']} in section $section_index, question $question_index";
-                $response['debug'] = "Ensure question_type_id exists in question_types table.";
+                $response['message'] = "Invalid question_uuid: {$question['question_uuid']} in section $section_index, question $question_index";
+                $response['debug'] = "Ensure question_uuid exists in question_types table.";
                 exit(json_encode($response));
             }
 
             $question_data = [
                 ':section_id' => $section_ids[$section_index],
-                ':question_type_id' => (int)$question['question_type_id'],
+                ':question_uuid' => $question['question_uuid'],
                 ':question_text' => $question['question_text'],
                 ':order_number' => isset($question['order_number']) ? (int)$question['order_number'] : $question_index + 1,
                 ':is_required' => isset($question['is_required']) ? filter_var($question['is_required'], FILTER_VALIDATE_BOOLEAN) : false,
@@ -278,10 +374,10 @@ try {
             }
 
             $question_sql = "INSERT INTO survey_questions (
-                section_id, question_type_id, question_text, order_number, is_required, max_length,
+                section_id, question_uuid, question_text, order_number, is_required, max_length,
                 options, min_value, max_value, media_type, media_url, placeholder, validation_rule, created_at
             ) VALUES (
-                :section_id, :question_type_id, :question_text, :order_number, :is_required, :max_length,
+                :section_id, :question_uuid, :question_text, :order_number, :is_required, :max_length,
                 :options, :min_value, :max_value, :media_type, :media_url, :placeholder, :validation_rule, NOW()
             )";
             $question_stmt = $pdo->prepare($question_sql);
@@ -292,17 +388,17 @@ try {
     $pdo->commit();
     http_response_code(200);
     $response['status'] = 'success';
-    $response['message'] = 'Survey, sections, and questions created successfully';
+    $response['message'] = $is_update ? 'Survey updated successfully' : 'Survey, sections, and questions created successfully';
     $response['survey_id'] = $survey_id;
     $response['section_ids'] = $section_ids;
 } catch (PDOException $e) {
     $pdo->rollBack();
     http_response_code(500);
-    $response['message'] = 'Failed to create survey: ' . $e->getMessage();
-    $response['debug'] = 'PDO Error: ' . json_encode($stmt->errorInfo()) . 
-                         '. SQL Query: ' . $sql . 
-                         '. Parameters: ' . json_encode(array_keys($survey_data)) . 
-                         '. Fix: Ensure all placeholders in the SQL query match $data keys. Check for typos or missing/extra parameters. Verify question_types and categories tables.';
+    $response['message'] = 'Failed to process survey: ' . $e->getMessage();
+    $response['debug'] = 'PDO Error: SQLSTATE[' . $e->getCode() . '] ' . $e->getMessage() . 
+                         '. SQL Query: ' . (isset($question_sql) ? $question_sql : $sql) . 
+                         '. Parameters: ' . json_encode(array_keys(isset($question_data) ? $question_data : $survey_data)) . 
+                         '. Fix: Ensure survey_questions table has question_uuid column (CHAR(36)). Verify question_types.question_uuid exists. Check for typos in column names. Check PDO connection in ../db_connect.php.';
 }
 
 exit(json_encode($response));
